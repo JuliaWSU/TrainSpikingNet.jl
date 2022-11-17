@@ -1,12 +1,17 @@
 using LinearAlgebra, Random, JLD2, Statistics, CUDA, NNlib, NNlibCUDA, ArgParse, SymmetricFormats, BatchedBLAS
-
+#import Pkg
+#Pkg.add("Setfield")
+#using Setfield
+#using Accessors
+#using AccessorsExtra
+#@set obj.a.b.c = d
 s = ArgParseSettings()
 
 @add_arg_table! s begin
     "--nloops", "-n"
         help = "number of iterations to train"
         arg_type = Int
-        default = 1
+        default = 10
     "--correlation_interval", "-c"
         help = "measure correlation every C training loops.  default is every loop"
         arg_type = Int
@@ -35,6 +40,9 @@ parsed_args = parse_args(s)
 # --- load code --- #
 include(joinpath(dirname(@__DIR__),"struct.jl"))
 p = load(joinpath(parsed_args["data_dir"],"param.jld2"), "p")
+
+#@show(p)
+
 
 kind=:train
 include("convertWgtIn2Out.jl")
@@ -138,8 +146,18 @@ function make_symmetric(A::Array)
     return A
 end
 
+@show(p.Nsteps)
+#@set p_new = p.Nsteps = 40000
+#@show(p_new.Nsteps)
+
+
+
+@show(size(wpWeightOut))
+
 maxcor = -Inf
 for iloop = R.+(1:parsed_args["nloops"])
+#for iloop = R.+(1:1)
+
     itask = choose_task(iloop, ntasks)
     println("Loop no. ", iloop, ", task no. ", itask) 
 
@@ -219,6 +237,8 @@ for iloop = R.+(1:parsed_args["nloops"])
         save(joinpath(parsed_args["data_dir"],"P-ckpt$iloop.jld2"),
              "P", p.PType==Symmetric ? make_symmetric(Array(P)) : Array(P))
     end
+    @show(maximum(ns))
+    @show(minimum(ns))
 
     elapsed_time = time()-start_time
     println("elapsed time: ",elapsed_time, " sec")

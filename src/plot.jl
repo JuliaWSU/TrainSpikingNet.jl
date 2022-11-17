@@ -1,34 +1,120 @@
 using ArgParse, JLD2, Random, LinearAlgebra
+using MultivariateStats
 
+using Gadfly, Compose, DataFrames, StatsBase, Statistics
+import Cairo, Fontconfig    
 import ArgParse: parse_item
+#using Revise
+
+import Plots.scatter
+import Plots.plot!
+import Plots.savefig
+import Plots
+
+
+using UMAP: umap
+
+function huecolors(n::Integer=100;alpha=0.8,saturation=1,brightness=1,precolors=[(0,1,0,alpha)],sufcolors=[])
+    hc = [(360(i-1)/n,saturation,brightness,alpha) for i in 1:n]
+    prepend!(hc,precolors)
+    append!(hc,sufcolors)
+    hc
+end
+"Flat Spike Trains to SpikeTimes and Trials, optionally sort trial based on `sv`"
+function flatspiketrains(xs,sv=[])
+    tn = length(xs)
+    if isempty(sv)
+        issort=false
+    elseif length(sv)==tn
+        issort=true
+    else
+        @warn """Length of "xs" and "sv" do not match, sorting ignored."""
+        issort=false
+    end
+    if issort
+        sxs=xs[sortperm(sv)]
+        ssv=sort(sv)
+    else
+        sxs=xs
+        ssv=sv
+    end
+    x=Float64[];y=Float64[];s=[]
+    for i in 1:tn
+        v = sxs[i];n=length(v)
+        n==0 && continue
+        append!(x,v);append!(y,fill(i,n))
+        issort && append!(s,fill(ssv[i],n))
+    end
+    return x,y,s
+end
+
+"Vertical stack same length vectors to matrix"
+function vstack(xs)
+    tn = length(xs)
+    n = length(xs[1])
+    mat = Matrix{Float64}(undef,tn,n)
+    for i in 1:tn
+        mat[i,:] = xs[i]
+    end
+    return mat
+end
+
+#using Plots,StatsPlots,VegaLite
+#import Plots: cgrad
+"scatter plot of spike trains"
+function plotspiketrain(x,y;group::Vector=[],timeline=[0],color=huecolors(length(unique(group))),title="",size=(800,600))
+    nt = isempty(x) ? 0 : maximum(y)
+    ms =0.45*size[2]/(nt+5)
+    p = Plots.plot(;size,leg=false,title,grid=false)
+    if isempty(group)
+        Plots.scatter!(p,x,y;label="SpikeTrain",markershape=:vline,markersize=ms,markerstrokewidth = 0)
+    else
+        Plots.scatter!(p,x,y;group,markershape=:vline,markersize=ms,markerstrokewidth = 0,color=permutedims(color))
+    end
+    Plots.vline!(p,timeline;line=(:grey),label="TimeLine",xaxis="ms",yaxis=("Trial"))
+end
+function plotspiketrain(sts::Vector;uids::Vector=[],sortvalues=[],timeline=[0],color=huecolors(0),title="",size=(800,600))
+    if isempty(uids)
+        g=uids;uc=color
+    else
+        fuids = flatspiketrains(uids,sortvalues)[1]
+        #@show(fuids)
+        g=map(i->"U$i",fuids);uc=huecolors(length(unique(fuids)))
+    end
+    plotspiketrain(flatspiketrains(sts,sortvalues)[1:2]...;group=g,timeline,color=uc,title,size)
+end
+
 
 function ArgParse.parse_item(::Type{Vector{Int}}, x::AbstractString)
     return eval(Meta.parse(x))
+
 end
 
 if !(@isdefined nss)
     s = ArgParseSettings()
-
     @add_arg_table! s begin
-        "--ineurons_to_plot", "-i"
-            help = "which neurons to plot.  must be the same or a subset of ineurons_to_test used in test.jl"
-            arg_type = Vector{Int}
-        "test_file"
-            help = "full path to the JLD file output by test.jl.  this same directory needs to contain the parameters in param.jld2, the synaptic targets in xtarg.jld2, and (optionally) the spike rate in rate.jld2"
-            required = true
+    "--ineurons_to_plot", "-i"
+        help = "which neurons to plot.  must be the same or a subset of ineurons_to_test used in test.jl"
+        arg_type = Vector{Int}
+    "test_file"
+        help = "full path to the JLD file output by test.jl.  this same directory needs to contain the parameters in param.jld2, the synaptic targets in xtarg.jld2, and (optionally) the spike rate in rate.jld2"
+        required = true
     end
 
     parsed_args = parse_args(s)
-
+    #@show(parsed_args["test_file"])
     d = load(parsed_args["test_file"])
     ineurons_to_test = d["ineurons_to_test"]
-
+    @show(length(ineurons_to_test))
     ineurons_to_plot = something(parsed_args["ineurons_to_plot"], ineurons_to_test)
+    @show(length(ineurons_to_plot))
 
     all(in.(ineurons_to_plot,[ineurons_to_test])) || error("ineurons_to_plot must be the same or a subset of ineurons_to_test in test.jl")
 
     if all(in.(ineurons_to_test,[ineurons_to_plot]))
         nss = d["nss"]
+        #@show(nss)
+
         timess = d["timess"]
         xtotals = d["xtotals"]
     else
@@ -45,6 +131,33 @@ if !(@isdefined nss)
             xtotals[ij] = d["xtotals"][ij][:,itest]
         end
     end
+    tt = convert(Array{Float64,2},timess[1])
+    println("Number of spikes")
+    println(length(tt[tt .> 0]))
+    whole_mat = reduce(vcat, nss)
+    plotspiketrain(whole_mat)#|>display
+    savefig("Spike_Raster2.png")
+
+    M = fit(PCA, tt; maxoutdim=2)
+    Yte = predict(M, tt)
+
+
+    res_jl = umap(tt; n_neighbors=5, min_dist=0.001, n_epochs=100)
+    println(length(res_jl[1,:]))
+    scatter(res_jl[1,:], res_jl[2,:], 
+            title="spike train: Julia UMAP", marker=(2, 2, :auto))#|>display
+    savefig("UMAP2.png")
+
+    #p = scatter(Yte[1,:],Yte[2,:],Yte[3,:],marker=:circle,linewidth=1)
+    #plot!(p,xlabel="PC1",ylabel="PC2",zlabel="PC3")|>display
+
+    p = scatter(Yte[1,:],Yte[2,:],marker=:circle,linewidth=1)
+    plot!(p,xlabel="PC1",ylabel="PC2")#|>display
+
+    plot!(p)
+    savefig("PCA2.png")
+
+
 
     include(joinpath(@__DIR__,"struct.jl"))
     p = load(joinpath(dirname(parsed_args["test_file"]),"param.jld2"), "p")
@@ -70,14 +183,14 @@ else
     output_prefix = joinpath(parsed_args["data_dir"], "test")
 end
 
-using Gadfly, Compose, DataFrames, StatsBase, Statistics
-import Cairo, Fontconfig
 
 ntrials = size(nss,1)
 ntasks = size(nss,2)
 nneurons = length(nss[1])
 nrows = isqrt(nneurons)
 ncols = cld(nneurons, nrows)
+@show(ncols)
+@show(nrows)
 
 for itask = 1:ntasks
 

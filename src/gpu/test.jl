@@ -17,7 +17,11 @@ s = ArgParseSettings()
     "--ineurons_to_test", "-i"
         help = "which neurons to test"
         arg_type = Vector{Int}
-        default = collect(1:16)
+        ##
+        # previously
+        default = collect(1:999)
+        ##
+        #default = collect(1:260)
         range_tester = x->all(x.>0)
     "--restore_from_checkpoint", "-r"
         help = "use checkpoint R.  default is to use the last one"
@@ -57,6 +61,8 @@ w0Weights = load(joinpath(parsed_args["data_dir"],"w0Weights.jld2"), "w0Weights"
 wpIndexIn = load(joinpath(parsed_args["data_dir"],"wpIndexIn.jld2"), "wpIndexIn")
 wpIndexOut = load(joinpath(parsed_args["data_dir"],"wpIndexOut.jld2"), "wpIndexOut")
 wpIndexConvert = load(joinpath(parsed_args["data_dir"],"wpIndexConvert.jld2"), "wpIndexConvert")
+
+
 if isnothing(parsed_args["restore_from_checkpoint"])
     R = maximum([parse(Int, m.captures[1])
                  for m in match.(r"ckpt([0-9]+)\.jld2",
@@ -65,9 +71,14 @@ if isnothing(parsed_args["restore_from_checkpoint"])
 else
     R = parsed_args["restore_from_checkpoint"]
 end
-wpWeightFfwd = load(joinpath(parsed_args["data_dir"],"wpWeightFfwd.jld2"), "wpWeightFfwd")
 wpWeightIn = load(joinpath(parsed_args["data_dir"],"wpWeightIn-ckpt$R.jld2"))["wpWeightIn"]
+
+wpWeightFfwd = load(joinpath(parsed_args["data_dir"],"wpWeightFfwd.jld2"), "wpWeightFfwd")
 wpWeightOut = zeros(maximum(wpIndexConvert), p.Ncells)
+#@show(size(wpWeightIn))
+@show(size(wpWeightOut))
+@show(p.Ncells)
+
 wpWeightOut = convertWgtIn2Out(wpIndexIn,wpIndexConvert,wpWeightIn,wpWeightOut)
 
 # --- set up variables --- #
@@ -105,6 +116,12 @@ if typeof(p.taudecay_plastic)<:AbstractArray
   copy_invtaudecay_plastic = [(device!(idevice-1); CuArray(tmp)) for idevice=1:ndevices()];
 end
 synchronize()
+
+@show(ntrials)
+@show(ntasks)
+ntrials = 1
+ntasks = 1
+
 Threads.@threads for itrial=1:ntrials
     idevice = Threads.threadid()
     device!(idevice-1)

@@ -1,3 +1,5 @@
+import ProgressBars
+
 function funRollingAvg(startInd,endInd,movavg,cnt,x)
     movavg[startInd:endInd,:] .+= transpose(x)
     cnt[startInd:endInd,:] .+= 1
@@ -121,7 +123,7 @@ forwardInputsPPrev .= 0.0
 end
 invtau = 1 ./ tau
 
-for ti=1:Nsteps
+for ti=ProgressBars.ProgressBar(1:Nsteps)
     t = dt*ti;
 
     @static p.K>0 && (forwardInputsE .= forwardInputsI .= 0.0)

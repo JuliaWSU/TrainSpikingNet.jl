@@ -39,7 +39,7 @@ elif [[ "$1" == "test" ]] ; then
   julia --project=$DIR -t $nthreads ${DIR}/src/$2/test.jl "${@:3}"
 
 elif [[ "$1" == "plot" ]] ; then
-  julia --project=$DIR ${DIR}/src/plot.jl "${@:2}"
+  julia -i --project=$DIR ${DIR}/src/plot.jl "${@:2}"
 
 else
   echo tsn.sh: first argument must be either install, unittest, init, train, test, or plot
