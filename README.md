@@ -10,6 +10,7 @@ To use a GPU you'll need Linux or Windows as the code (currently)
 requires CUDA, and Nvidia does not support Macs.
 
 
+
 # Installation #
 
 Install Julia with [juliaup](https://github.com/JuliaLang/juliaup)
@@ -75,6 +76,10 @@ feed forward  |    6      6
 ```
 
 # Basic Usage #
+
+```
+bash workflow.sh
+```
 
 Edit "src/param.jl" to set your network size, connectivity, stimulus
 pattern, etc.  Optionally, make a copy of it:
