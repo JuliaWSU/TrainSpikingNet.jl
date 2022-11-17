@@ -40,7 +40,7 @@ $ echo "export PATH=$PATH:~/bin/julia-1.8.1/bin:~/bin/TrainSpikingNet.jl" >> ~/.
 Download all of the required packages:
 
 ```
-$ tsn.sh install
+$sh tsn.sh install
   Activating project at `~/TrainSpikingNet.jl`
   Activating project at `~/TrainSpikingNet.jl/test`
 ```
@@ -48,7 +48,7 @@ $ tsn.sh install
 Finally, (and optionally) test that everything works:
 
 ```
-$ tsn.sh unittest
+$sh tsn.sh unittest
 Test Summary: | Pass  Total
 Array         |    6      6
 Test Summary: | Pass  Total
@@ -78,7 +78,7 @@ feed forward  |    6      6
 # Basic Usage #
 
 ```
-bash workflow.sh
+sh workflow.sh
 ```
 
 Edit "src/param.jl" to set your network size, connectivity, stimulus
@@ -116,7 +116,7 @@ Phys. Rev. E).  In all cases, the synaptic targets are stored in "xtarg.jld2",
 which can be subsquently referenced using `-x`.
 
 ```
-$ tsn.sh init -t auto ~/data
+$sh tsn.sh init -t auto ~/data
 mean excitatory firing rate: 3.427978515625 Hz
 mean inhibitory firing rate: 6.153564453125 Hz
 
@@ -133,7 +133,7 @@ Use the `-t` flag to thread the CPU version of train.jl; it has no effect
 on the GPU:
 
 ```
-$ tsn.sh train gpu -n100 ~/data
+$sh tsn.sh train gpu -n100 ~/data
 Loop no. 1
 correlation: -0.023547219725048148
 elapsed time: 41.81254005432129 sec
@@ -172,7 +172,7 @@ Finally, plot the trainined activities.  The underlying data is stored in
 "test.jld2":
 
 ```
-$ tsn.sh test gpu -n50 ~/data
+$sh tsn.sh test gpu -n50 ~/data
 trial #1, 53.0 sec
 trial #2, 9.34 sec
 trial #3, 9.24 sec
