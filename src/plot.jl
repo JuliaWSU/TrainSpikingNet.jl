@@ -15,13 +15,28 @@ import Plots
 using UMAP: umap
 
 function huecolors(n::Integer=100;alpha=0.8,saturation=1,brightness=1,precolors=[(0,1,0,alpha)],sufcolors=[])
+    """
+    "Flat Spike Trains to SpikeTimes and Trials, optionally sort trial based on `sv`"
+
+    # Note code here is lifted from
+    # https://github.com/Experica/NeuroAnalysis.jl/blob/master/src/Visualization/Visualization.jl#L41
+    The neuroAnalysis package is not compatible with this packages build requirements so I hacked in their code as approriate. 
+    Credit to the team at NeuroAnalysis.jl
+    """
     hc = [(360(i-1)/n,saturation,brightness,alpha) for i in 1:n]
     prepend!(hc,precolors)
     append!(hc,sufcolors)
     hc
 end
-"Flat Spike Trains to SpikeTimes and Trials, optionally sort trial based on `sv`"
 function flatspiketrains(xs,sv=[])
+    """
+    "Flat Spike Trains to SpikeTimes and Trials, optionally sort trial based on `sv`"
+
+    # Note code here is lifted from
+    # https://github.com/Experica/NeuroAnalysis.jl/blob/master/src/Visualization/Visualization.jl#L41
+    The neuroAnalysis package is not compatible with this packages build requirements so I hacked in their code as approriate. 
+    Credit to the team at NeuroAnalysis.jl
+    """
     tn = length(xs)
     if isempty(sv)
         issort=false
@@ -48,8 +63,15 @@ function flatspiketrains(xs,sv=[])
     return x,y,s
 end
 
-"Vertical stack same length vectors to matrix"
 function vstack(xs)
+    """
+    "Flat Spike Trains to SpikeTimes and Trials, optionally sort trial based on `sv`"
+
+    # Note code here is lifted from
+    # https://github.com/Experica/NeuroAnalysis.jl/blob/master/src/Visualization/Visualization.jl#L41
+    The neuroAnalysis package is not compatible with this packages build requirements so I hacked in their code as approriate. 
+    Credit to the team at NeuroAnalysis.jl
+    """
     tn = length(xs)
     n = length(xs[1])
     mat = Matrix{Float64}(undef,tn,n)
@@ -63,6 +85,14 @@ end
 #import Plots: cgrad
 "scatter plot of spike trains"
 function plotspiketrain(x,y;group::Vector=[],timeline=[0],color=huecolors(length(unique(group))),title="",size=(800,600))
+    """
+    "Flat Spike Trains to SpikeTimes and Trials, optionally sort trial based on `sv`"
+
+    # Note code here is lifted from
+    # https://github.com/Experica/NeuroAnalysis.jl/blob/master/src/Visualization/Visualization.jl#L41
+    The neuroAnalysis package is not compatible with this packages build requirements so I hacked in their code as approriate. 
+    Credit to the team at NeuroAnalysis.jl
+    """
     nt = isempty(x) ? 0 : maximum(y)
     ms =0.45*size[2]/(nt+5)
     p = Plots.plot(;size,leg=false,title,grid=false)
