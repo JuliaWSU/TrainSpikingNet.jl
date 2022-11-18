@@ -2,7 +2,11 @@
 #
 # Use test.jld2 to decide whether or not to purge data pre-existing data files, pertaining to a stale simulation run.
 #
-filename='test.jld2'
+
+mkdir -p ~/data_ben
+
+
+filename='~/data_ben/test.jld2'
 # Check the file is exists or not
 if [ -f $filename ]; then
    rm test.txt
