@@ -1,13 +1,13 @@
 TrainSpikingNet.jl uses recursive least squares to train fluctation-driven
 spiking recurrent neural networks to recapitulate arbitrary activity patterns.
-See Arthur, Kim, Preibisch, and Darshan (2022, in prep) for further details.
+[See Arthur, Kim, Preibisch, and Darshan (2022, in prep) for further details](https://www.biorxiv.org/content/10.1101/2022.09.26.509578v1).
 
 
-# Requirements #
+# About # 
 
-The CPU version of TrainSpikingNet.jl can run on any machine.
-To use a GPU you'll need Linux or Windows as the code (currently)
-requires CUDA, and Nvidia does not support Macs.
+If you are like me, you may want to know: Where are the Leaky Integrate and Fire neurons, that the network simulator is using? They are here:
+
+[GPU LIF neuron code](https://github.com/russelljjarvis/TrainSpikingNet.jl/blob/master/src/gpu/loop.jl#L190-L208), and here: [CPU LIF neuron code](https://github.com/russelljjarvis/TrainSpikingNet.jl/blob/master/src/cpu/loop.jl#L225-L240)
 
 
 # Installation #
@@ -39,7 +39,7 @@ $ echo "export PATH=$PATH:~/bin/julia-1.8.1/bin:~/bin/TrainSpikingNet.jl" >> ~/.
 Download all of the required packages:
 
 ```
-$ tsn.sh install
+$sh tsn.sh install
   Activating project at `~/TrainSpikingNet.jl`
   Activating project at `~/TrainSpikingNet.jl/test`
 ```
@@ -47,7 +47,7 @@ $ tsn.sh install
 Finally, (and optionally) test that everything works:
 
 ```
-$ tsn.sh unittest
+$sh tsn.sh unittest
 Test Summary: | Pass  Total
 Array         |    6      6
 Test Summary: | Pass  Total
@@ -75,6 +75,10 @@ feed forward  |    6      6
 ```
 
 # Basic Usage #
+
+```
+sh workflow.sh
+```
 
 Edit "src/param.jl" to set your network size, connectivity, stimulus
 pattern, etc.  Optionally, make a copy of it:
@@ -111,7 +115,7 @@ Phys. Rev. E).  In all cases, the synaptic targets are stored in "xtarg.jld2",
 which can be subsquently referenced using `-x`.
 
 ```
-$ tsn.sh init -t auto ~/data
+$sh tsn.sh init -t auto ~/data
 mean excitatory firing rate: 3.427978515625 Hz
 mean inhibitory firing rate: 6.153564453125 Hz
 
@@ -128,7 +132,7 @@ Use the `-t` flag to thread the CPU version of train.jl; it has no effect
 on the GPU:
 
 ```
-$ tsn.sh train gpu -n100 ~/data
+$sh tsn.sh train gpu -n100 ~/data
 Loop no. 1
 correlation: -0.023547219725048148
 elapsed time: 41.81254005432129 sec
@@ -167,7 +171,7 @@ Finally, plot the trainined activities.  The underlying data is stored in
 "test.jld2":
 
 ```
-$ tsn.sh test gpu -n50 ~/data
+$sh tsn.sh test gpu -n50 ~/data
 trial #1, 53.0 sec
 trial #2, 9.34 sec
 trial #3, 9.24 sec
