@@ -1,14 +1,13 @@
 TrainSpikingNet.jl uses recursive least squares to train fluctation-driven
 spiking recurrent neural networks to recapitulate arbitrary activity patterns.
-See Arthur, Kim, Preibisch, and Darshan (2022, in prep) for further details.
+[See Arthur, Kim, Preibisch, and Darshan (2022, in prep) for further details](https://www.biorxiv.org/content/10.1101/2022.09.26.509578v1).
 
 
-# Requirements #
+# About # 
 
-The CPU version of TrainSpikingNet.jl can run on any machine.
-To use a GPU you'll need Linux or Windows as the code (currently)
-requires CUDA, and Nvidia does not support Macs.
+If you are like me, you may want to know: Where are the Leaky Integrate and Fire neurons, that the network simulator is using? They are here:
 
+[GPU LIF neuron code](https://github.com/russelljjarvis/TrainSpikingNet.jl/blob/master/src/gpu/loop.jl#L190-L208), and here: [CPU LIF neuron code](https://github.com/russelljjarvis/TrainSpikingNet.jl/blob/master/src/cpu/loop.jl#L225-L240)
 
 
 # Installation #
