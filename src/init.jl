@@ -131,7 +131,7 @@ for postCell = 1:p.Ncells
         for i = 1:ncpIn[postCell]
             preCell = wpIndexIn[postCell,i]
             if preCell!=0
-                @show(size(wpIndexOutD))
+                @show(length(wpIndexOutD))
                 @show(preCell)
                 push!(wpIndexOutD[preCell], postCell)
                 @show(size(wpIndexConvert))
