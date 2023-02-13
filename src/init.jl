@@ -93,109 +93,9 @@ uavg, ns0, ustd,times = loop_init(itask, nothing, nothing, p.stim_off, p.train_t
 
 
 
-
-function raster(nodes,times)
-    xs = []
-    ys = []
-    for ci=1:length(nodes)
-        push!(xs, times[ci])
-        push!(ys, ci)
-    end
-    size = (800,600)
-
-    p0 = Plots.plot(;size,leg=false,title="spike train",grid=false)
-
-    scatter(p0,xs,ys;label="SpikeTrain",markershape=:vline,markersize=ms,markerstrokewidth = 0.5)
-
-    savefig("Better_Spike_Rastery.png")
-end
-
 #raster(p,times)
 
 #times = Vector{Float64}(read(h5open("spikes.h5","r")["spikes"]["v1"]["timestamps"]))
-
-function raster(nodes,times)
-
-    #=
-    Don't forget to make a normalized raster plot
-    =#
-    size = (800,600)
-    p0 = Plots.plot(;size,leg=false,title="spike train",grid=false)
-    markersize=0.0001#ms
-    scatter(p0,times,nodes;label="SpikeTrain",markershape=:vline,markerstrokewidth = 0.00015)
-
-    savefig("Better_Spike_Rastery.png")
-end
-
-
-function PSTH(nodes,times)
-    temp = size(nodes)[1]
-    bin_size = 5 # ms
-    bins = collect(1:bin_size:temp)
-    markersize=0.001#ms
-    l = @layout [a ; b]
-    p1 = scatter(times,nodes;bin=bins,label="SpikeTrain",markershape=:vline,markerstrokewidth = 0.015, legend = false)
-    p2 = plot(stephist(times, title="PSTH", legend = false))
-    size_ = (800,600)
-
-    Plots.plot(p1, p2, layout = l,size=size_) 
-    #savefig("PSTH.png")
-
-end
-
-function corrplot(nodes,times)
-
-    xs = []
-    ys = []
-    for ci=1:length(nodes)
-        push!(xs, times[ci])
-        push!(ys, ci)
-    end
-    #w = exp.(xs)
-    @show(size(xs))
-
-    StatsPlots.corrplot([xs])|>display
-
-
-end
-function PSTHMap(nodes,times)
-    xs = []
-    ys = []
-    for ci=1:length(nodes)/200
-        push!(xs, times[ci])
-        push!(ys, ci)
-    end
-    histogram2d(xs,nbins= maximum(unique(nodes)),show_empty_bins=true, normalize=:pdf,color=:inferno)|>display#,bins=bins)
-
-end
-function PSTH(nodes,times)
-    #temp = size(nodes)[1]
-    bin_size = 5 # ms
-    bins = collect(1:bin_size:maximum(times))
-    markersize=0.001#ms
-    l = @layout [a ; b]
-    p1 = scatter(times,nodes;bin=bins,label="SpikeTrain",markershape=:vline,markerstrokewidth = 0.0015, legend = false)
-    p2 = plot(stephist(times, title="PSTH", legend = false))
-    size_ = (800,600)
-
-    Plots.plot(p1, p2, layout = l,size=size_)
-    savefig("PSTH.png")
-
-end
-
-function convert_ragged_arraytodense(times)
-    converttimes = []
-    convertnodes = []
-    for (ind,i) in enumerate(times)
-        for t in i
-            append!(converttimes,i)
-            append!(convertnodes,ind)
-
-        end
-
-    end
-    (converttimes,convertnodes)
-end
 
 (times,nodes) = convert_ragged_arraytodense(times)
 
@@ -203,7 +103,7 @@ end
 #raster(nodes,times) |> display
 
 #PSTH(nodes,times)
-PSTHMap(nodes,times)
+#PSTHMap(nodes,times)
 
 wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn =
     genPlasticWeights(p.genPlasticWeights_args, w0Index, nc0, ns0)
@@ -228,8 +128,7 @@ for postCell = 1:p.Ncells
             preCell = wpIndexIn[postCell,i]
             if preCell!=0
                 push!(wpIndexOutD[preCell], postCell)
-                #bp add 105 [length(wpIndexOutD[preCell])!=length(wpIndexOutD[preCell]]
-                JuliaInterpreter.@bp()
+
                 view(wpIndexConvert,postCell,i) = length(wpIndexOutD[preCell])
             end
         end
