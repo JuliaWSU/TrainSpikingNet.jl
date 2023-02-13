@@ -2,7 +2,7 @@ using Revise
 
 using SparseArrays
 using ProgressMeter
-
+using UnicodePlots
 function potjans_params()
     conn_probs = [[0.1009,  0.1689, 0.0437, 0.0818, 0.0323, 0.,     0.0076, 0.    ],
                 [0.1346,   0.1371, 0.0316, 0.0515, 0.0755, 0.,     0.0042, 0.    ],
@@ -32,11 +32,14 @@ function potjans_params()
         cumulative[k]=collect(v_old:v+v_old)
         v_old=v+v_old
     end
+
+
+    
     return (cumulative,ccu,ccuf,layer_names,columns_conn_probs,conn_probs)
 end
 
 
-function potjans_weights(Ncells)
+function potjans_weights(Ncells, jee, jie, jei, jii)
     (cumulative,ccu,ccuf,layer_names,columns_conn_probs,conn_probs) = potjans_params()    
     w_mean = 87.8e-3  # nA
     ###
@@ -51,13 +54,12 @@ function potjans_weights(Ncells)
 
     w0Index_ = spzeros(Int,Ncells,Ncells)
     w0Weights = spzeros(Float32,Ncells,Ncells)
-    edge_dict = Dict() # Int64,Array{Int64}
-    polarity = Dict()
-
+    edge_dict = Dict() 
     for src in 1:p.Ncells
         edge_dict[src] = Int64[]
-        polarity[src] = ""
+       
     end
+
     Ne = 0 
     Ni = 0
     @showprogress for (i,(k,v)) in enumerate(pairs(cumulative))
@@ -70,20 +72,18 @@ function potjans_weights(Ncells)
                         if rand()<prob
                             if occursin("E",k) 
                                 if occursin("E",k1)          
-                                    w0Weights[tgt,src] = p.je#*#350.0#)/2.0
+                                    w0Weights[tgt,src] = jee/20.
                                 elseif occursin("I",k1)                    
-                                    w0Weights[tgt,src] = p.jx#*150.0  
+                                    w0Weights[tgt,src] = jei*2.0
                                 end
-                                polarity[src]="E"
                                 Ne+=1	
                     
                             elseif occursin("I",k)
                                 if occursin("E",k1)                    
-                                    w0Weights[tgt,src] = -p.jx  
+                                    w0Weights[tgt,src] = -jie *10.0 
                                 elseif occursin("I",k1)                    
-                                    w0Weights[tgt,src] = -p.ji#*2.0  
+                                    w0Weights[tgt,src] = -jii/2.0  
                                 end
-                                polarity[src]="I"
                                 Ni+=1
 
                             end
@@ -97,14 +97,33 @@ function potjans_weights(Ncells)
         end
     
     end
+    #layer_names = ["23E","23I","4E","4I","5E", "5I", "6E", "6I"]
+    #                1,     2,   3,   4    5,    6      7    8
+    # 0               1,3,5,7,2,4,6,8
+    transformed_layer_names = []
 
-    return (edge_dict,w0Weights,w0Index_,Ne,Ni)
+    w0Index__ = spzeros(size(w0Index_))
+    w0Weights_ = spzeros(size(w0Weights))
+
+    transform_matrix_ind = zip(collect(1:8),[1,3,5,7,2,4,6,8])
+    for (i,j) in transform_matrix_ind
+        w0Index__[i,:] =  w0Index_[j,:]
+        w0Weights_[j,:] = w0Weights[j,:]
+        append!(transformed_layer_names,layer_names[j])
+
+    end
+    UnicodePlots.spy(w0Weights_)
+
+    return (edge_dict,w0Weights_,w0Index__,Ne,Ni)
 end
 
 function genStaticWeights(args)
+    
     Ncells, _, pree, prie, prei, prii, jee, jie, jei, jii = map(x->args[x],
             [:Ncells, :Ne, :pree, :prie, :prei, :prii, :jee, :jie, :jei, :jii])
-    (edge_dict,w0Weights,w0Index_,Ne,Ni) = potjans_weights(Ncells)
+
+
+    (edge_dict,w0Weights,w0Index_,Ne,Ni) = potjans_weights(Ncells, jee, jie, jei, jii)
 
     nc0Max = 0
 
@@ -131,7 +150,7 @@ function genPlasticWeights(args, w0Index, nc0, ns0)
     Ncells, frac, Ne, L, Lexc, Linh, Lffwd, wpee, wpie, wpei, wpii, wpffwd = map(x->args[x],
     [:Ncells, :frac, :Ne, :L, :Lexc, :Linh, :Lffwd, :wpee, :wpie, :wpei, :wpii, :wpffwd])
     
-    (edge_dict,w0Weights,w0Index_,Ne,Ni) = potjans_weights(Ncells)
+    (edge_dict,w0Weights,w0Index_,Ne,Ni) =  potjans_weights(Ncells, wpee, wpie, wpei, wpii)
     
     ##
     # nc0Max is the maximum number of post synaptic targets
@@ -166,7 +185,7 @@ function genPlasticWeights(args, w0Index, nc0, ns0)
 end
 #wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn =
 #genPlasticWeights(p.genPlasticWeights_args, w0Index, nc0, ns0)
-
+#=depreciated
 function convert_dense_matrices(p)
     (edge_dict,w0Weights,w0Index_,Ne,Ni) = re_write_weights(p.Ncells)
     
@@ -251,3 +270,4 @@ function genWeights_square(p)
     
     end
 
+=#

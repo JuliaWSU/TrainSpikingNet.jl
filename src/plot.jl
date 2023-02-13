@@ -101,20 +101,6 @@ function PSTH(nodes,times)
 
 end
 
-function convert_ragged_arraytodense(times)
-    converttimes = []
-    convertnodes = []
-    for (ind,i) in enumerate(times)
-        for t in i
-            append!(converttimes,i)
-            append!(convertnodes,ind)
-
-        end
-
-    end
-    (converttimes,convertnodes)
-end
-
 
 function huecolors(n::Integer=100;alpha=0.8,saturation=1,brightness=1,precolors=[(0,1,0,alpha)],sufcolors=[])
     """

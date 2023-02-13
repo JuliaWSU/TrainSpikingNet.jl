@@ -78,7 +78,7 @@ JuliaInterpreter.@bp()
 
 times = []
 for i in 1:p.Ncells
-    push!(times,[])#Vector{Float64})
+    push!(times,[])
 end
 uavg, ns0, ustd,times = loop_init(itask, nothing, nothing, p.stim_off, p.train_time, dt,
     p.Nsteps, p.Ncells, p.Ne, nothing, refrac, vre, invtauedecay,
@@ -93,30 +93,34 @@ uavg, ns0, ustd,times = loop_init(itask, nothing, nothing, p.stim_off, p.train_t
 
 
 
-#raster(p,times)
+function convert_ragged_arraytodense(times)
+    converttimes = []
+    convertnodes = []
+    for (ind,i) in enumerate(times)
+        for t in i
+            append!(converttimes,i)
+            append!(convertnodes,ind)
 
-#times = Vector{Float64}(read(h5open("spikes.h5","r")["spikes"]["v1"]["timestamps"]))
+        end
+
+    end
+    (converttimes,convertnodes)
+end
+    
 
 (times,nodes) = convert_ragged_arraytodense(times)
 
-#PSTH(nodes,times) |> display
-#raster(nodes,times) |> display
-
-#PSTH(nodes,times)
-#PSTHMap(nodes,times)
-
 wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn =
     genPlasticWeights(p.genPlasticWeights_args, w0Index, nc0, ns0)
-#Unicode
-#Plots.spy(wpWeightIn) |> display
-#wpIndexOut = wpWeightIn
-#ncpOut = ncpIn
-#wpIndexConvert= wpIndexIn
+if false
+    UnicodePlots.spy(wpWeightIn) |> display
+end
+
 
 # get indices of postsynaptic cells for each presynaptic cell
 wpIndexConvert = zeros(Int, p.Ncells+1,p.Ncells+1)# p.Lexc+p.Linh)
 wpIndexOutD = Dict()
-ncpOut = Array{Int}(undef, p.Ncells+1)
+ncpOut = Array{Int}(undef, p.Ncells)
 for i = 1:p.Ncells
     wpIndexOutD[i] = []
 end
@@ -127,9 +131,13 @@ for postCell = 1:p.Ncells
         for i = 1:ncpIn[postCell]
             preCell = wpIndexIn[postCell,i]
             if preCell!=0
+                @show(size(wpIndexOutD))
+                @show(preCell)
                 push!(wpIndexOutD[preCell], postCell)
-
-                view(wpIndexConvert,postCell,i) = length(wpIndexOutD[preCell])
+                @show(size(wpIndexConvert))
+                @show(length(wpIndexOutD[preCell]))
+                @show(postCell,i)
+                wpIndexConvert[postCell,i] = length(wpIndexOutD[preCell])
             end
         end
     end
@@ -139,6 +147,14 @@ for preCell = 1:p.Ncells
         ncpOut[preCell] = length(wpIndexOutD[preCell])
     end
 end
+
+
+#PSTH(nodes,times) |> display
+#raster(nodes,times) |> display
+
+#PSTH(nodes,times)
+#PSTHMap(nodes,times)
+
 
 # get weight, index of outgoing connections
 wpIndexOut = zeros(Int, maximum(ncpOut),p.Ncells)
