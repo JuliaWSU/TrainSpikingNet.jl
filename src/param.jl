@@ -18,10 +18,19 @@ save(joinpath(parsed_args["data_dir"],"rng-init.jld2"), "rng", rng)
 dt = 0.1 #simulation timestep (ms)
 
 # network size
-Ncells = 4096
-Ne = floor(Int, Ncells*0.5)
-Ni = ceil(Int, Ncells*0.5)
+#Ncells = 4096
+#Ne = floor(Int, Ncells*0.5)
+#Ni = ceil(Int, Ncells*0.5)
+ccu = Dict("23E"=>20683,
+            "4E"=>21915, 
+            "5E"=>4850, 
+            "6E"=>14395, "6I"=>2948, "23I"=>5834,"5I"=>1065,"4I"=>5479)
+ccu = Dict((k,ceil(Int64,v/35.0)) for (k,v) in pairs(ccu))
 
+Ncells = sum([i for i in values(ccu)])+1
+
+Ne = Int(floor(Int,Ncells)*0.5);
+Ni = Int(floor(Int,Ncells)*0.5);
 # innate, train, test time (ms)
 train_duration = 1000.0
 stim_on        = 800.0
@@ -55,9 +64,11 @@ threshi = 1.0
 refrac = 0.1 # refractory period
 vre = 0.0
 
-genStaticWeights_file = "genStaticWeights-erdos-renyi.jl"
 genStaticWeights_args = Dict(:Ncells => Ncells, :Ne => Ne,
                              :pree => 0.1, :prie => 0.1, :prei => 0.1, :prii => 0.1)
+
+genStaticWeights_file = "genWeightsPotjans.jl"
+
 
 K = round(Int, Ne*genStaticWeights_args[:pree])
 sqrtK = sqrt(K)
@@ -95,7 +106,7 @@ mu[(Ne+1):Ncells] = (muimax-muimin)*rand(rng, Ni) .+ muimin
 
 wpscale = sqrt(L) * 2.0
 
-genPlasticWeights_file = "genPlasticWeights-erdos-renyi.jl"
+genPlasticWeights_file = "genWeightsPotjans.jl"
 genPlasticWeights_args = Dict(:Ncells => Ncells, :frac => frac, :Ne => Ne, :L => L, :Lexc => Lexc, :Linh => Linh, :Lffwd => Lffwd,
                               :wpee => 2.0 * taue * g / wpscale,
                               :wpie => 2.0 * taue * g / wpscale,
@@ -110,6 +121,11 @@ correlation_var = K>0 ? :xtotal : :xplastic
 
 maxrate = 500 #(Hz) maximum average firing rate.  if the average firing rate across the simulation for any neuron exceeds this value, some of that neuron's spikes will not be saved
 
+
+#p0 = paramType(PPrecision,PScale,FloatPrecision,IntPrecision,PType,seed,rng_func,example_neurons,wid,train_duration,penlambda,penlamFF,penmu,frac,learn_every,stim_on,stim_off,train_time,dt,Nsteps,Ncells,Ne,Ni,taue,taui,K,L,Lffwd,Lexc,Linh,wpscale,
+#je,ji,jx,mu,vre,threshe,threshi,refrac,tauedecay,tauidecay,taudecay_plastic,noise_model,sig,correlation_var,maxrate,
+#genStim_file, genStim_args, genTarget_file, genTarget_args, genFfwdRate_file, genFfwdRate_args, genStaticWeights_file, genStaticWeights_args, genPlasticWeights_file, genPlasticWeights_args,
+#choose_task_func)
 
 p = paramType(PPrecision,PScale,FloatPrecision,IntPrecision,PType,seed,rng_func,example_neurons,wid,train_duration,penlambda,penlamFF,penmu,frac,learn_every,stim_on,stim_off,train_time,dt,Nsteps,Ncells,Ne,Ni,taue,taui,K,L,Lffwd,Lexc,Linh,wpscale,
 je,ji,jx,mu,vre,threshe,threshi,refrac,tauedecay,tauidecay,taudecay_plastic,noise_model,sig,correlation_var,maxrate,

@@ -36,15 +36,14 @@ function potjans_params()
 end
 
 
-function re_write_weights(Ncells)
+function potjans_weights(Ncells)
     (cumulative,ccu,ccuf,layer_names,columns_conn_probs,conn_probs) = potjans_params()    
     w_mean = 87.8e-3  # nA
     ###
-    # Efficiency right!
     # Lower memory footprint motivations.
     # a sparse matrix can be stored as a smaller dense matrix.
     # A 2D matrix should be stored as 1D matrix of srcs,tgts
-    # A weight matrix should be stored as 1 matrix, which is redistributed in loops using 
+    # A 2D weight matrix should be stored as 1 matrix, which is redistributed in loops using 
     # the 1D matrix of srcs,tgts.
     ###
     Ncells = sum([i for i in values(ccu)])+1#max([max(i[:]) for i in values(cumulative)])
@@ -64,25 +63,28 @@ function re_write_weights(Ncells)
     @showprogress for (i,(k,v)) in enumerate(pairs(cumulative))
         for src in v
             for (j,(k1,v1)) in enumerate(pairs(cumulative))
+
                 for tgt in v1
                     if src!=tgt
                         prob = conn_probs[i][j]
                         if rand()<prob
                             if occursin("E",k) 
-                                if occursin("E",k1)                    
-                                    w0Weights[tgt,src] = p.jee#*#350.0#)/2.0
+                                if occursin("E",k1)          
+                                    w0Weights[tgt,src] = p.je#*#350.0#)/2.0
                                 elseif occursin("I",k1)                    
-                                    w0Weights[tgt,src] = p.jei#*150.0  
+                                    w0Weights[tgt,src] = p.jx#*150.0  
                                 end
                                 polarity[src]="E"
+                                Ne+=1	
                     
                             elseif occursin("I",k)
                                 if occursin("E",k1)                    
-                                    w0Weights[tgt,src] = -p.jie  
+                                    w0Weights[tgt,src] = -p.jx  
                                 elseif occursin("I",k1)                    
-                                    w0Weights[tgt,src] = -p.jii#*2.0  
+                                    w0Weights[tgt,src] = -p.ji#*2.0  
                                 end
-                                    polarity[src]="I"
+                                polarity[src]="I"
+                                Ni+=1
 
                             end
                             append!(edge_dict[src],tgt)
@@ -95,15 +97,75 @@ function re_write_weights(Ncells)
         end
     
     end
-    for val in values(polarity)
-        if val=="E"
-            Ne+=1
-        elseif val=="I"
-            Ni+=1
-        end
-    end
+
     return (edge_dict,w0Weights,w0Index_,Ne,Ni)
 end
+
+function genStaticWeights(args)
+    Ncells, _, pree, prie, prei, prii, jee, jie, jei, jii = map(x->args[x],
+            [:Ncells, :Ne, :pree, :prie, :prei, :prii, :jee, :jie, :jei, :jii])
+    (edge_dict,w0Weights,w0Index_,Ne,Ni) = potjans_weights(Ncells)
+
+    nc0Max = 0
+
+    for (k,v) in pairs(edge_dict)
+        templength = length(v)
+        if templength>nc0Max
+            nc0Max=templength
+        end
+    end
+
+    #nc0Max = Ncells-1 # outdegree
+    nc0 = Int.(nc0Max*ones(Ncells))
+    w0Index = spzeros(Int,nc0Max,Ncells)
+    for pre_cell = 1:Ncells
+        post_cells = edge_dict[pre_cell]
+        w0Index[1:length(edge_dict[pre_cell]),pre_cell] = post_cells
+    end
+
+
+    return w0Index, w0Weights, nc0
+end
+
+function genPlasticWeights(args, w0Index, nc0, ns0)
+    Ncells, frac, Ne, L, Lexc, Linh, Lffwd, wpee, wpie, wpei, wpii, wpffwd = map(x->args[x],
+    [:Ncells, :frac, :Ne, :L, :Lexc, :Linh, :Lffwd, :wpee, :wpie, :wpei, :wpii, :wpffwd])
+    
+    (edge_dict,w0Weights,w0Index_,Ne,Ni) = potjans_weights(Ncells)
+    
+    ##
+    # nc0Max is the maximum number of post synaptic targets
+    # its a limit on the outdegree.
+    # if this is not known upfront it can be calculated on the a pre-exisiting adjacency matrix as I do below.
+    ##
+
+    nc0Max = 0
+
+    for (k,v) in pairs(edge_dict)
+        templength = length(v)
+        if templength>nc0Max
+            nc0Max=templength
+        end
+    end
+
+    #nc0Max = Ncells-1 # outdegree
+    nc0 = Int.(nc0Max*ones(Ncells))
+    w0Index = spzeros(Int,nc0Max,Ncells)
+    for pre_cell = 1:Ncells
+        post_cells = edge_dict[pre_cell]
+        w0Index[1:length(edge_dict[pre_cell]),pre_cell] = post_cells
+    end
+
+
+    wpIndexIn = w0Index
+    wpWeightIn = w0Weights
+    ncpIn = nc0
+    wpWeightFfwd = randn(rng, p.Ncells, p.Lffwd) * wpffwd
+    
+    return wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn
+end
+#wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn =
+#genPlasticWeights(p.genPlasticWeights_args, w0Index, nc0, ns0)
 
 function convert_dense_matrices(p)
     (edge_dict,w0Weights,w0Index_,Ne,Ni) = re_write_weights(p.Ncells)

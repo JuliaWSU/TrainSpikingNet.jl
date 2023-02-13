@@ -225,6 +225,8 @@ for ti=1:Nsteps
         if t > (lastSpike[ci] + refrac)  
             # update membrane potential
             v[ci] += dt * invtau[ci] * (bias[ci] - v[ci] + synInput[ci])
+            #@show(length(ns))
+            #@show(times)
 
             #spike occurred
             if v[ci] > thresh[ci]                      
@@ -232,12 +234,22 @@ for ti=1:Nsteps
                 @static kind in [:train, :train_test] && (forwardSpike[ci] = 1)   # record that neuron ci spiked. Used for computing r[ci]
                 lastSpike[ci] = t           # record neuron ci's last spike time. Used for checking ci is not in refractory period
                 ns[ci] += 1           # number of spikes neuron ci emitted
-                @static kind in [:test, :train_test] && if ns[ci] <= maxTimes
+                #@static kind in [:init, :test, :train_test] && 
+                #if ns[ci] <= maxTimes
+                #@show(t,ci)
+                @static if kind == :init#, :test, :train_test]
+                    push!(times[ci],t)
+                    #@show(times)
+                else
                     times[ci,ns[ci]] = t
                 end
+                    #end
             end #end if(spike occurred)
         end #end not in refractory period
     end #end loop over neurons
+    #@show(size(forwardInputsE))
+    #@show(size(forwardInputsI))
+    #@show(size(w0Index))
 
     for ci = 1:Ncells
         if lastSpike[ci] == t
@@ -249,13 +261,18 @@ for ti=1:Nsteps
             # (1) balanced connections (static)
             # loop over neurons (indexed by j) postsynaptic to neuron ci.                     
             # nc0[ci] is the number neurons postsynaptic neuron ci
-            @static p.K>0 && for j = 1:nc0[ci]                       
+            @static p.K>0 && for j = 1:nc0[ci] 
+                #@show(j)      
+                #@show(w0Index)
+                
                 post_ci = w0Index[j,ci]                 # cell index of j_th postsynaptic neuron
-                wgt = w0Weights[j,ci]                   # synaptic weight of the connection, ci -> post_ci
-                if wgt > 0                              # excitatory synapse
-                    forwardInputsE[post_ci] += wgt      #   - neuron ci spike's excitatory contribution to post_ci's synaptic current
-                elseif wgt < 0                          # inhibitory synapse
-                    forwardInputsI[post_ci] += wgt      #   - neuron ci spike's inhibitory contribution to post_ci's synaptic current
+                if post_ci !=0 
+                    wgt = w0Weights[j,ci]                   # synaptic weight of the connection, ci -> post_ci
+                    if wgt > 0                              # excitatory synapse
+                        forwardInputsE[post_ci] += wgt      #   - neuron ci spike's excitatory contribution to post_ci's synaptic current
+                    elseif wgt < 0                          # inhibitory synapse
+                        forwardInputsI[post_ci] += wgt      #   - neuron ci spike's inhibitory contribution to post_ci's synaptic current
+                    end
                 end
             end #end loop over synaptic projections
 
@@ -264,6 +281,7 @@ for ti=1:Nsteps
             # ncpOut[ci] is the number neurons postsynaptic neuron ci
             @static kind in [:train, :test, :train_test] && for j = 1:ncpOut[ci]
                 post_ci = wpIndexOut[j,ci]                 # cell index of j_th postsynaptic neuron
+                #@show(post_ci)
                 forwardInputsP[post_ci] += wpWeightOut[j,ci]    # neuron ci spike's contribution to post_ci's synaptic current
             end
         end
@@ -326,7 +344,7 @@ end #end loop over time
     println("mean inhibitory firing rate: ", 1000*mean(ns[(Ne+1):Ncells])/train_time, " Hz")
                 
     ustd = mean(std(utmp, dims=1))
-    return uavg, ns, ustd
+    return uavg, ns, ustd, times
 end
 
 @static if kind in [:test, :train_test]

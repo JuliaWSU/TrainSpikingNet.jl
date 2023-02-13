@@ -89,7 +89,7 @@ else
     wpWeightIn = load(joinpath(parsed_args["data_dir"],"wpWeightIn-ckpt$R.jld2"), "wpWeightIn");
     P = load(joinpath(parsed_args["data_dir"],"P-ckpt$R.jld2"), "P");
 end;
-wpWeightOut = zeros(maximum(wpIndexConvert), p.Ncells);
+wpWeightOut = zeros(maximum(wpIndexConvert)+1, p.Ncells+1);
 wpWeightOut = convertWgtIn2Out(p.Ncells,ncpIn,wpIndexIn,wpIndexConvert,wpWeightIn,wpWeightOut);
 
 rng = eval(p.rng_func["cpu"])

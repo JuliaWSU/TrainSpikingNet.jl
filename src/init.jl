@@ -1,5 +1,13 @@
 using LinearAlgebra, Random, JLD2, Statistics, StatsBase, ArgParse, SymmetricFormats
+using Plots
+using StatsBase
+using Random
+using ProgressMeter
+using StatsPlots
 
+#using UnicodePlots
+#using Debugger
+using JuliaInterpreter
 function ArgParse.parse_item(::Type{Vector{Int}}, x::AbstractString)
     return eval(Meta.parse(x))
 end
@@ -65,9 +73,16 @@ w0Index, w0Weights, nc0 = genStaticWeights(p.genStaticWeights_args)
 ffwdRate = genFfwdRate(p.genFfwdRate_args)
 
 itask = 1
-uavg, ns0, ustd = loop_init(itask, nothing, nothing, p.stim_off, p.train_time, dt,
+
+JuliaInterpreter.@bp()
+
+times = []
+for i in 1:p.Ncells
+    push!(times,[])#Vector{Float64})
+end
+uavg, ns0, ustd,times = loop_init(itask, nothing, nothing, p.stim_off, p.train_time, dt,
     p.Nsteps, p.Ncells, p.Ne, nothing, refrac, vre, invtauedecay,
-    invtauidecay, nothing, mu, thresh, tau, nothing, nothing, ns, nothing,
+    invtauidecay, nothing, mu, thresh, tau, times, times, ns, nothing,
     ns_ffwd, forwardInputsE, forwardInputsI, nothing, forwardInputsEPrev,
     forwardInputsIPrev, nothing, nothing, nothing, xedecay, xidecay, nothing,
     synInputBalanced, synInput, nothing, nothing, bias, nothing, nothing, lastSpike,
@@ -76,32 +91,162 @@ uavg, ns0, ustd = loop_init(itask, nothing, nothing, p.stim_off, p.train_time, d
     nothing, nothing, nothing, nothing, nothing, nothing, nothing, uavg,
     utmp, ffwdRate)
 
+
+
+
+function raster(nodes,times)
+    xs = []
+    ys = []
+    for ci=1:length(nodes)
+        push!(xs, times[ci])
+        push!(ys, ci)
+    end
+    size = (800,600)
+
+    p0 = Plots.plot(;size,leg=false,title="spike train",grid=false)
+
+    scatter(p0,xs,ys;label="SpikeTrain",markershape=:vline,markersize=ms,markerstrokewidth = 0.5)
+
+    savefig("Better_Spike_Rastery.png")
+end
+
+#raster(p,times)
+
+#times = Vector{Float64}(read(h5open("spikes.h5","r")["spikes"]["v1"]["timestamps"]))
+
+function raster(nodes,times)
+
+    #=
+    Don't forget to make a normalized raster plot
+    =#
+    size = (800,600)
+    p0 = Plots.plot(;size,leg=false,title="spike train",grid=false)
+    markersize=0.0001#ms
+    scatter(p0,times,nodes;label="SpikeTrain",markershape=:vline,markerstrokewidth = 0.00015)
+
+    savefig("Better_Spike_Rastery.png")
+end
+
+
+function PSTH(nodes,times)
+    temp = size(nodes)[1]
+    bin_size = 5 # ms
+    bins = collect(1:bin_size:temp)
+    markersize=0.001#ms
+    l = @layout [a ; b]
+    p1 = scatter(times,nodes;bin=bins,label="SpikeTrain",markershape=:vline,markerstrokewidth = 0.015, legend = false)
+    p2 = plot(stephist(times, title="PSTH", legend = false))
+    size_ = (800,600)
+
+    Plots.plot(p1, p2, layout = l,size=size_) 
+    #savefig("PSTH.png")
+
+end
+
+function corrplot(nodes,times)
+
+    xs = []
+    ys = []
+    for ci=1:length(nodes)
+        push!(xs, times[ci])
+        push!(ys, ci)
+    end
+    #w = exp.(xs)
+    @show(size(xs))
+
+    StatsPlots.corrplot([xs])|>display
+
+
+end
+function PSTHMap(nodes,times)
+    xs = []
+    ys = []
+    for ci=1:length(nodes)/200
+        push!(xs, times[ci])
+        push!(ys, ci)
+    end
+    histogram2d(xs,nbins= maximum(unique(nodes)),show_empty_bins=true, normalize=:pdf,color=:inferno)|>display#,bins=bins)
+
+end
+function PSTH(nodes,times)
+    #temp = size(nodes)[1]
+    bin_size = 5 # ms
+    bins = collect(1:bin_size:maximum(times))
+    markersize=0.001#ms
+    l = @layout [a ; b]
+    p1 = scatter(times,nodes;bin=bins,label="SpikeTrain",markershape=:vline,markerstrokewidth = 0.0015, legend = false)
+    p2 = plot(stephist(times, title="PSTH", legend = false))
+    size_ = (800,600)
+
+    Plots.plot(p1, p2, layout = l,size=size_)
+    savefig("PSTH.png")
+
+end
+
+function convert_ragged_arraytodense(times)
+    converttimes = []
+    convertnodes = []
+    for (ind,i) in enumerate(times)
+        for t in i
+            append!(converttimes,i)
+            append!(convertnodes,ind)
+
+        end
+
+    end
+    (converttimes,convertnodes)
+end
+
+(times,nodes) = convert_ragged_arraytodense(times)
+
+#PSTH(nodes,times) |> display
+#raster(nodes,times) |> display
+
+#PSTH(nodes,times)
+PSTHMap(nodes,times)
+
 wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn =
     genPlasticWeights(p.genPlasticWeights_args, w0Index, nc0, ns0)
+#Unicode
+#Plots.spy(wpWeightIn) |> display
+#wpIndexOut = wpWeightIn
+#ncpOut = ncpIn
+#wpIndexConvert= wpIndexIn
 
 # get indices of postsynaptic cells for each presynaptic cell
-wpIndexConvert = zeros(Int, p.Ncells, p.Lexc+p.Linh)
-wpIndexOutD = Dict{Int,Array{Int,1}}()
-ncpOut = Array{Int}(undef, p.Ncells)
+wpIndexConvert = zeros(Int, p.Ncells+1,p.Ncells+1)# p.Lexc+p.Linh)
+wpIndexOutD = Dict()
+ncpOut = Array{Int}(undef, p.Ncells+1)
 for i = 1:p.Ncells
     wpIndexOutD[i] = []
 end
+
+
 for postCell = 1:p.Ncells
-    for i = 1:ncpIn[postCell]
-        preCell = wpIndexIn[postCell,i]
-        push!(wpIndexOutD[preCell], postCell)
-        wpIndexConvert[postCell,i] = length(wpIndexOutD[preCell])
+    if postCell!=0
+        for i = 1:ncpIn[postCell]
+            preCell = wpIndexIn[postCell,i]
+            if preCell!=0
+                push!(wpIndexOutD[preCell], postCell)
+                #bp add 105 [length(wpIndexOutD[preCell])!=length(wpIndexOutD[preCell]]
+                JuliaInterpreter.@bp()
+                view(wpIndexConvert,postCell,i) = length(wpIndexOutD[preCell])
+            end
+        end
     end
 end
 for preCell = 1:p.Ncells
-    ncpOut[preCell] = length(wpIndexOutD[preCell])
+    if preCell!=0
+        ncpOut[preCell] = length(wpIndexOutD[preCell])
+    end
 end
 
 # get weight, index of outgoing connections
 wpIndexOut = zeros(Int, maximum(ncpOut),p.Ncells)
-for preCell = 1:p.Ncells
+for preCell = 1:p.Ncells-1
     wpIndexOut[1:ncpOut[preCell],preCell] = wpIndexOutD[preCell]
 end
+
 
 Ntime = floor(Int, (p.train_time-p.stim_off)/p.learn_every)
 if parsed_args["xtarg_file"] !== nothing
