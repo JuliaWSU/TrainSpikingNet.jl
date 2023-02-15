@@ -1,9 +1,8 @@
-using Revise
 
 using SparseArrays
-using ProgressMeter
+#using ProgressMeter
 using UnicodePlots
-function potjans_params()
+function potjans_params(scale_N_cells=1.0)
     """
     This code draws heavily on the PyNN OSB Potjans implementation code found here:
     https://github.com/OpenSourceBrain/PotjansDiesmann2014/blob/master/PyNN/network_params.py#L139-L146
@@ -27,6 +26,8 @@ function potjans_params()
         append!(transformed_layer_names,layer_names[j])
 
     end
+    #
+    # Nice idea but not used.
     #ccuf = Dict(
     #    k=>v for (k,v) in zip(layer_names,columns_conn_probs)
     #)
@@ -36,7 +37,7 @@ function potjans_params()
                 "5E"=>4850, "5I"=>1065,
                 "6E"=>14395, "6I"=>2948)
 
-    ccu = Dict((k,ceil(Int64,v/35.0)) for (k,v) in pairs(ccu))
+    ccu = Dict((k,ceil(Int64,v/scale_N_cells)) for (k,v) in pairs(ccu))
     cumulative = Dict() 
     v_old=1
     for (k,v) in pairs(ccu)
@@ -49,38 +50,10 @@ function potjans_params()
     
     return (cumulative,ccu,transformed_layer_names,columns_conn_probs,conn_probs_)
 end
-function repartition_exc_inh(p,w0Index,w0Weights,layer_names)
-    #=
-    Transform the matrix so that excitatory connections are in the top partition,
-    inhibitory connections are in the bottom connection.
-
-    TODO: how can I check that I have not confused presynaptic with postsynaptic matrix orientation?
-    Taking the conjugate transpose would convert from one way to another.
-    =#
-    transformed_layer_names = []
-
-    #w0Index_ = spzeros(size(w0Index))
-    #w0Weights_ = spzeros(size(w0Weights))
-
-    transform_matrix_ind = zip(collect(1:8),[1,3,5,7,2,4,6,8])
-    for (_,j) in transform_matrix_ind
-        #w0Index_[i,:] =  w0Index[j,:]
-        #w0Weights_[i,:] = w0Weights[j,:]
-        append!(transformed_layer_names,layer_names[j])
-
-    end
-    #if true
-        # TODO make a verbose flag condition
-    #    UnicodePlots.spy(w0Weights_)
-    #end
-    #Lexc,Linh = p.Lexc,p.Linh;
-
-    (w0Weights_,w0Index_,Lexc,Linh)
-end
 function build_index(cumulative::Dict{Any, Any}, conn_probs::Vector{Vector{Float64}})
     tuple_index = []
-    Lexc = []
-    Linh = []
+    Lexc_ind = []
+    Linh_ind = []
 
     for (i,(k,v)) in enumerate(pairs(cumulative))
             
@@ -96,15 +69,16 @@ function build_index(cumulative::Dict{Any, Any}, conn_probs::Vector{Vector{Float
                 end
             end
             if i<round(length(cumulative)/2.0)
-                append!(Lexc,src)
+                append!(Lexc_ind,src)
             else
-                append!(Linh,src)
+                append!(Linh_ind,src)
             end
 
         end
 
     end
-    return tuple_index,Lexc,Linh
+    
+    return tuple_index,Lexc_ind,Linh_ind
 
 
 end
@@ -158,6 +132,10 @@ function potjans_weights(Ncells::Int64, jee::Float64, jie::Float64, jei::Float64
             #w0Index[tgt,src] = tgt
         #end
     end
+
+    Lexc = w0Weights[Lexc_ind,:]
+    Linh = w0Weights[Linh_ind,:]
+
     #end
     ##
     # TODO make this commented out call work!
@@ -227,6 +205,39 @@ function genPlasticWeights(args::Dict{Symbol, Real}, w0Index, nc0, ns0)
     
     return wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn
 end
+
+#=
+Depreciated
+function repartition_exc_inh(p,w0Index,w0Weights,layer_names)
+    #=
+    Transform the matrix so that excitatory connections are in the top partition,
+    inhibitory connections are in the bottom connection.
+
+    TODO: how can I check that I have not confused presynaptic with postsynaptic matrix orientation?
+    Taking the conjugate transpose would convert from one way to another.
+    =#
+    transformed_layer_names = []
+
+    #w0Index_ = spzeros(size(w0Index))
+    #w0Weights_ = spzeros(size(w0Weights))
+
+    transform_matrix_ind = zip(collect(1:8),[1,3,5,7,2,4,6,8])
+    for (_,j) in transform_matrix_ind
+        #w0Index_[i,:] =  w0Index[j,:]
+        #w0Weights_[i,:] = w0Weights[j,:]
+        append!(transformed_layer_names,layer_names[j])
+
+    end
+    #if true
+        # TODO make a verbose flag condition
+    #    UnicodePlots.spy(w0Weights_)
+    #end
+    #Lexc,Linh = p.Lexc,p.Linh;
+
+    (w0Weights_,w0Index_,Lexc,Linh)
+end
+=#
+
 #=
 Depreciated
 

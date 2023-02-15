@@ -1,3 +1,5 @@
+include("src/genWeightsPotjans.jl")
+
 PPrecision = Float64  # can be <:Integer on GPUs
 PScale = 1  # if PPrecision<:Integer then PScale should be e.g. 2^(nbits-2)
 FloatPrecision = Float64
@@ -17,21 +19,17 @@ save(joinpath(parsed_args["data_dir"],"rng-init.jld2"), "rng", rng)
 
 dt = 0.1 #simulation timestep (ms)
 
-# network size
-#Ncells = 4096
-#Ne = floor(Int, Ncells*0.5)
-#Ni = ceil(Int, Ncells*0.5)
+
 ccu = Dict("23E"=>20683,
             "4E"=>21915, 
             "5E"=>4850, 
             "6E"=>14395, "6I"=>2948, "23I"=>5834,"5I"=>1065,"4I"=>5479)
-ccu = Dict((k,ceil(Int64,v/35.0)) for (k,v) in pairs(ccu))
+ccu = Dict((k,ceil(Int64,v)) for (k,v) in pairs(ccu))
 
 Ncells = sum([i for i in values(ccu)])+1
 
-Ne = Int(floor(Int,Ncells)*0.5);
-Ni = Int(floor(Int,Ncells)*0.5);
-# innate, train, test time (ms)
+(edge_dict,w0Weights,Ne,Ni,Lexc,Linh) = potjans_weights(Ncells, jee, jie, jei, jii)
+
 train_duration = 1000.0
 stim_on        = 800.0
 stim_off       = 1000.0
