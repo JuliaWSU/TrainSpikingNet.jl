@@ -16,13 +16,20 @@ function potjans_params()
                 [0.0548,   0.0269, 0.0257, 0.0022, 0.06,   0.3158, 0.0086, 0.    ],
                 [0.0156,   0.0066, 0.0211, 0.0166, 0.0572, 0.0197, 0.0396, 0.2252],
                 [0.0364,   0.001,  0.0034, 0.0005, 0.0277, 0.008,  0.0658, 0.1443]]
-
+    conn_probs_= copy(conn_probs)
     columns_conn_probs = [col for col in eachcol(conn_probs)][1]
     layer_names = ["23E","23I","4E","4I","5E", "5I", "6E", "6I"]
+    transformed_layer_names = []
 
-    ccuf = Dict(
-        k=>v for (k,v) in zip(layer_names,columns_conn_probs)
-    )
+    transform_matrix_ind = zip(collect(1:8),[1,3,5,7,2,4,6,8])
+    for (i,j) in transform_matrix_ind
+        conn_probs_[i,:] = conn_probs[j,:]
+        append!(transformed_layer_names,layer_names[j])
+
+    end
+    #ccuf = Dict(
+    #    k=>v for (k,v) in zip(layer_names,columns_conn_probs)
+    #)
 
     ccu = Dict("23E"=>20683, "23I"=>5834,
                 "4E"=>21915, "4I"=>5479,
@@ -33,15 +40,16 @@ function potjans_params()
     cumulative = Dict() 
     v_old=1
     for (k,v) in pairs(ccu)
+        ## A cummulative cell count
         cumulative[k]=collect(v_old:v+v_old)
         v_old=v+v_old
     end
 
 
     
-    return (cumulative,ccu,ccuf,layer_names,columns_conn_probs,conn_probs)
+    return (cumulative,ccu,transformed_layer_names,columns_conn_probs,conn_probs_)
 end
-function repartition_exc_inh(w0Index,w0Weights,layer_names)
+function repartition_exc_inh(p,w0Index,w0Weights,layer_names)
     #=
     Transform the matrix so that excitatory connections are in the top partition,
     inhibitory connections are in the bottom connection.
@@ -51,33 +59,60 @@ function repartition_exc_inh(w0Index,w0Weights,layer_names)
     =#
     transformed_layer_names = []
 
-    w0Index_ = spzeros(size(w0Index))
-    w0Weights_ = spzeros(size(w0Weights))
+    #w0Index_ = spzeros(size(w0Index))
+    #w0Weights_ = spzeros(size(w0Weights))
 
     transform_matrix_ind = zip(collect(1:8),[1,3,5,7,2,4,6,8])
-    for (i,j) in transform_matrix_ind
-        w0Index_[i,:] =  w0Index[j,:]
-        w0Weights_[i,:] = w0Weights[j,:]
+    for (_,j) in transform_matrix_ind
+        #w0Index_[i,:] =  w0Index[j,:]
+        #w0Weights_[i,:] = w0Weights[j,:]
         append!(transformed_layer_names,layer_names[j])
 
     end
-    #@show(transformed_layer_names)
-    #@show(w0Weights_)
-    @show(size(w0Index_))
-    @show(size(w0Weights_))
-
-    @show(last(w0Index_))
-
-    if false
+    #if true
         # TODO make a verbose flag condition
-        UnicodePlots.spy(w0Weights_)
+    #    UnicodePlots.spy(w0Weights_)
+    #end
+    #Lexc,Linh = p.Lexc,p.Linh;
+
+    (w0Weights_,w0Index_,Lexc,Linh)
+end
+function build_index(cumulative::Dict{Any, Any}, conn_probs::Vector{Vector{Float64}})
+    tuple_index = []
+    Lexc = []
+    Linh = []
+
+    for (i,(k,v)) in enumerate(pairs(cumulative))
+            
+        for src in v
+            for (j,(k1,v1)) in enumerate(pairs(cumulative))
+                for tgt in v1
+                    if src!=tgt
+                        prob = conn_probs[i][j]
+                        if rand()<prob
+                            push!(tuple_index,(Int64(src),Int64(tgt),k,k1))
+                        end
+                    end
+                end
+            end
+            if i<round(length(cumulative)/2.0)
+                append!(Lexc,src)
+            else
+                append!(Linh,src)
+            end
+
+        end
+
     end
-    (w0Weights_,w0Index_)
+    return tuple_index,Lexc,Linh
+
+
 end
 
 
-function potjans_weights(Ncells, jee, jie, jei, jii)
-    (cumulative,ccu,_,layer_names,_,conn_probs) = potjans_params()    
+
+function potjans_weights(Ncells::Int64, jee::Float64, jie::Float64, jei::Float64, jii::Float64)
+    (cumulative,ccu,layer_names,_,conn_probs) = potjans_params()    
     w_mean = 87.8e-3  # nA
     ###
     # Lower memory footprint motivations.
@@ -86,7 +121,7 @@ function potjans_weights(Ncells, jee, jie, jei, jii)
     # A 2D weight matrix should be stored as 1 matrix, which is redistributed in loops using 
     # the 1D matrix of srcs,tgts.
     ###
-    Ncells = sum([i for i in values(ccu)])+1
+    Ncells = sum([i for i in values(ccu)]) + 1
     
 
     w0Index = spzeros(Int,Ncells,Ncells)
@@ -99,43 +134,36 @@ function potjans_weights(Ncells, jee, jie, jei, jii)
 
     Ne = 0 
     Ni = 0
-    @showprogress for (i,(k,v)) in enumerate(pairs(cumulative))
-        for src in v
-            for (j,(k1,v1)) in enumerate(pairs(cumulative))
+    tuple_index,Lexc,Linh = build_index(cumulative,conn_probs)
+    for (src,tgt,k,k1) in tuple_index
 
-                for tgt in v1
-                    if src!=tgt
-                        prob = conn_probs[i][j]
-                        if rand()<prob
-                            if occursin("E",k) 
-                                if occursin("E",k1)          
-                                    w0Weights[tgt,src] = jee/20.
-                                elseif occursin("I",k1)                    
-                                    w0Weights[tgt,src] = jei*2.0
-                                end
-                                Ne+=1	
-                    
-                            elseif occursin("I",k)
-                                if occursin("E",k1)                    
-                                    w0Weights[tgt,src] = -jie *10.0 
-                                elseif occursin("I",k1)                    
-                                    w0Weights[tgt,src] = -jii/2.0  
-                                end
-                                Ni+=1
-
-                            end
-                            append!(edge_dict[src],tgt)
-                            w0Index[tgt,src] = tgt
-
-                        end
-                    end
-                end
+        if occursin("E",k) 
+            if occursin("E",k1)          
+                w0Weights[tgt,src] = jee#/20.
+            else# meaning if occursin("I",k1)                    
+                w0Weights[tgt,src] = jei#*2.0
             end
+            Ne+=1	
+        else
+        # meaning elseif occursin("I",k)
+            if occursin("E",k1)                    
+                w0Weights[tgt,src] = -jie# *10.0 
+            else# meaning if occursin("I",k1)                    
+                w0Weights[tgt,src] = -jii#/2.0  
+            end
+            Ni+=1
+
         end
-    
+        append!(edge_dict[src],tgt)
+            #w0Index[tgt,src] = tgt
+        #end
     end
+    #end
+    ##
+    # TODO make this commented out call work!
+    ##
     #(w0Weights,w0Index) = repartition_exc_inh(w0Index,w0Weights,layer_names)
-    return (edge_dict,w0Weights,w0Index,Ne,Ni)
+    return (edge_dict,w0Weights,Ne,Ni,Lexc,Linh)
 end
 function common_decoration(edge_dict,Ncells)
     nc0Max = 0
@@ -149,8 +177,13 @@ function common_decoration(edge_dict,Ncells)
 
     # outdegree
     nc0 = Int.(nc0Max*ones(Ncells))
-    w0Index = spzeros(Int,nc0Max,Ncells)
+
+    ##
+    # Force ragged array into smallest dense rectangle (contains zeros for undefined synapses) 
+    ##
+    w0Index = spzeros(Int64,nc0Max,Ncells)
     for pre_cell = 1:Ncells
+        #@show(edge_dict[pre_cell])
         post_cells = edge_dict[pre_cell]
         w0Index[1:length(edge_dict[pre_cell]),pre_cell] = post_cells
     end
@@ -158,41 +191,44 @@ function common_decoration(edge_dict,Ncells)
     
 end
 
-function genStaticWeights(args)
-    
-    Ncells, _, pree, prie, prei, prii, jee, jie, jei, jii = map(x->args[x],
+function genStaticWeights(args::Dict{Symbol, Real})
+    #
+    # unpack arguments, this is just going through the motions, mostly not used.
+    Ncells, _, _, _, _, _, jee, jie, jei, jii = map(x->args[x],
             [:Ncells, :Ne, :pree, :prie, :prei, :prii, :jee, :jie, :jei, :jii])
 
-    (edge_dict,w0Weights,w0Index_,Ne,Ni) = potjans_weights(Ncells, jee, jie, jei, jii)
+    (edge_dict,w0Weights,Ne,Ni,Lexc,Linh) = potjans_weights(Ncells, jee, jie, jei, jii)
 
-    w0Index,nc0 = common_decoration(edge_dict,Ncells)
+    nc0,w0Index = common_decoration(edge_dict,Ncells)
 
     return w0Index, w0Weights, nc0
 end
 
-function genPlasticWeights(args, w0Index, nc0, ns0)
+function genPlasticWeights(args::Dict{Symbol, Real}, w0Index, nc0, ns0)
+    #
+    # unpack arguments, this is just going through the motions, mostly not used.
     Ncells, _, _, _, _, _, Lffwd, wpee, wpie, wpei, wpii, wpffwd = map(x->args[x],
     [:Ncells, :frac, :Ne, :L, :Lexc, :Linh, :Lffwd, :wpee, :wpie, :wpei, :wpii, :wpffwd])
-    
-    (edge_dict,w0Weights,w0Index_,Ne,Ni) =  potjans_weights(Ncells, wpee, wpie, wpei, wpii)
+    (edge_dict,wpWeightIn,Ne,Ni,Lexc,Linh) =  potjans_weights(Ncells, wpee, wpie, wpei, wpii)
     
     ##
     # nc0Max is the maximum number of post synaptic targets
     # its a limit on the outdegree.
     # if this is not known upfront it can be calculated on the a pre-exisiting adjacency matrix as I do below.
     ##
-    w0Index,nc0 = common_decoration(edge_dict,Ncells)
+    ncpIn,wpIndexIn = common_decoration(edge_dict,Ncells)
 
 
-
-    wpIndexIn = w0Index
-    wpWeightIn = w0Weights
-    ncpIn = nc0
+    # meaning
+    #wpIndexIn = w0Index
+    # wpWeightIn = w0Weights
+    #ncpIn = nc0
     wpWeightFfwd = randn(rng, p.Ncells, p.Lffwd) * wpffwd
     
     return wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn
 end
-#=depreciated
+#=
+Depreciated
 
 #wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn =
 #genPlasticWeights(p.genPlasticWeights_args, w0Index, nc0, ns0)

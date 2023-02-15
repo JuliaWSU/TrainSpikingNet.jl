@@ -4,13 +4,16 @@ using StatsBase
 using Random
 using ProgressMeter
 using StatsPlots
-
+using Plots
 #using UnicodePlots
+unicodeplots()
 #using Debugger
 using JuliaInterpreter
 function ArgParse.parse_item(::Type{Vector{Int}}, x::AbstractString)
     return eval(Meta.parse(x))
 end
+#verbose = false
+verbose = true
 
 aps = ArgParseSettings()
 
@@ -70,13 +73,16 @@ include("rate2synInput.jl")
 
 #----------- initialization --------------#
 w0Index, w0Weights, nc0 = genStaticWeights(p.genStaticWeights_args)
+UnicodePlots.spy(w0Weights) |> display
+#UnicodePlots.spy(w0Index) |> display
+
 ffwdRate = genFfwdRate(p.genFfwdRate_args)
 
 itask = 1
 
 times = []
 for i in 1:p.Ncells
-    push!(times,[])
+    push!(times,Float32[])
 end
 uavg, ns0, ustd,times = loop_init(itask, nothing, nothing, p.stim_off, p.train_time, dt,
     p.Nsteps, p.Ncells, p.Ne, nothing, refrac, vre, invtauedecay,
@@ -110,8 +116,10 @@ end
 
 wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn =
     genPlasticWeights(p.genPlasticWeights_args, w0Index, nc0, ns0)
-if false
+if verbose
     UnicodePlots.spy(wpWeightIn) |> display
+    #UnicodePlots.spy(wpIndexIn) |> display
+
 end
 
 
@@ -127,53 +135,38 @@ end
 for postCell = 1:p.Ncells
     if postCell!=0
         for i = 1:ncpIn[postCell]
-            println("break ff")
-            @show(postCell)
-            @show(i)
-            @show(size(wpIndexIn))
-            preCell = wpIndexIn[postCell,i] # This line fails
-            if preCell!=0
-                #@show(length(wpIndexOutD))
-                #@show(preCell)
-                push!(wpIndexOutD[preCell], postCell)
-                #@show(size(wpIndexConvert))
-                #@show(length(wpIndexOutD[preCell]))
-                @show(postCell,i)
-                println("break a")
-                
-                wpIndexConvert[postCell,i] = length(wpIndexOutD[preCell])
-                println("break b")
+ 
+            ##
+            # wpIndexIn
+            # incompatible with indexs provided.
+            ##
+            if postCell <= sizeof(wpIndexIn[:,i]) # unfortunate hack
+                # to do figure out how to get rid of unfortunate hack.
+                preCell = wpIndexIn[postCell,i] # This line fails
+                if preCell!=0
+
+                    push!(wpIndexOutD[preCell], postCell)
+
+                    wpIndexConvert[postCell,i] = length(wpIndexOutD[preCell])
+                end
             end
         end
     end
 end
 for preCell = 1:p.Ncells
     if preCell!=0
-        println("break c")
 
-        @show(ncpOut[preCell])
-        println("break d")
-
-        @show(wpIndexOutD)
-        println("break e")
 
         ncpOut[preCell] = length(wpIndexOutD[preCell])
     end
 end
 
 
-#PSTH(nodes,times) |> display
-#raster(nodes,times) |> display
 
-#PSTH(nodes,times)
-#PSTHMap(nodes,times)
-
-println("gets to here")
 # get weight, index of outgoing connections
 wpIndexOut = zeros(Int, maximum(ncpOut),p.Ncells)
 for preCell = 1:p.Ncells-1
-    @show(wpIndexOutD[preCell])
-    @show(wpIndexOut[1:ncpOut[preCell],preCell])
+
     wpIndexOut[1:ncpOut[preCell],preCell] = wpIndexOutD[preCell]
 end
 
@@ -224,6 +217,8 @@ Pinv[1:pLrec, 1:pLrec] = Pinv_rec
 Pinv[pLrec+1 : pLrec+p.Lffwd, pLrec+1 : pLrec+p.Lffwd] = Pinv_ffwd
 Pinv_norm = p.PType(Symmetric(UpperTriangular(Pinv) \ I));
 
+
+println("got here")
 #----------- save initialization --------------#
 save(joinpath(parsed_args["data_dir"],"param.jld2"), "p", p)
 save(joinpath(parsed_args["data_dir"],"w0Index.jld2"), "w0Index", w0Index)
