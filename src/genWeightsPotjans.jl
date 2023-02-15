@@ -4,6 +4,10 @@ using SparseArrays
 using ProgressMeter
 using UnicodePlots
 function potjans_params()
+    """
+    This code draws heavily on the PyNN OSB Potjans implementation code found here:
+    https://github.com/OpenSourceBrain/PotjansDiesmann2014/blob/master/PyNN/network_params.py#L139-L146
+    """
     conn_probs = [[0.1009,  0.1689, 0.0437, 0.0818, 0.0323, 0.,     0.0076, 0.    ],
                 [0.1346,   0.1371, 0.0316, 0.0515, 0.0755, 0.,     0.0042, 0.    ],
                 [0.0077,   0.0059, 0.0497, 0.135,  0.0067, 0.0003, 0.0453, 0.    ],
@@ -37,10 +41,43 @@ function potjans_params()
     
     return (cumulative,ccu,ccuf,layer_names,columns_conn_probs,conn_probs)
 end
+function repartition_exc_inh(w0Index,w0Weights,layer_names)
+    #=
+    Transform the matrix so that excitatory connections are in the top partition,
+    inhibitory connections are in the bottom connection.
+
+    TODO: how can I check that I have not confused presynaptic with postsynaptic matrix orientation?
+    Taking the conjugate transpose would convert from one way to another.
+    =#
+    transformed_layer_names = []
+
+    w0Index_ = spzeros(size(w0Index))
+    w0Weights_ = spzeros(size(w0Weights))
+
+    transform_matrix_ind = zip(collect(1:8),[1,3,5,7,2,4,6,8])
+    for (i,j) in transform_matrix_ind
+        w0Index_[i,:] =  w0Index[j,:]
+        w0Weights_[i,:] = w0Weights[j,:]
+        append!(transformed_layer_names,layer_names[j])
+
+    end
+    #@show(transformed_layer_names)
+    #@show(w0Weights_)
+    @show(size(w0Index_))
+    @show(size(w0Weights_))
+
+    @show(last(w0Index_))
+
+    if false
+        # TODO make a verbose flag condition
+        UnicodePlots.spy(w0Weights_)
+    end
+    (w0Weights_,w0Index_)
+end
 
 
 function potjans_weights(Ncells, jee, jie, jei, jii)
-    (cumulative,ccu,ccuf,layer_names,columns_conn_probs,conn_probs) = potjans_params()    
+    (cumulative,ccu,_,layer_names,_,conn_probs) = potjans_params()    
     w_mean = 87.8e-3  # nA
     ###
     # Lower memory footprint motivations.
@@ -49,10 +86,10 @@ function potjans_weights(Ncells, jee, jie, jei, jii)
     # A 2D weight matrix should be stored as 1 matrix, which is redistributed in loops using 
     # the 1D matrix of srcs,tgts.
     ###
-    Ncells = sum([i for i in values(ccu)])+1#max([max(i[:]) for i in values(cumulative)])
+    Ncells = sum([i for i in values(ccu)])+1
     
 
-    w0Index_ = spzeros(Int,Ncells,Ncells)
+    w0Index = spzeros(Int,Ncells,Ncells)
     w0Weights = spzeros(Float32,Ncells,Ncells)
     edge_dict = Dict() 
     for src in 1:p.Ncells
@@ -88,7 +125,7 @@ function potjans_weights(Ncells, jee, jie, jei, jii)
 
                             end
                             append!(edge_dict[src],tgt)
-                            w0Index_[tgt,src] = tgt
+                            w0Index[tgt,src] = tgt
 
                         end
                     end
@@ -97,36 +134,12 @@ function potjans_weights(Ncells, jee, jie, jei, jii)
         end
     
     end
-    #layer_names = ["23E","23I","4E","4I","5E", "5I", "6E", "6I"]
-    #                1,     2,   3,   4    5,    6      7    8
-    # 0               1,3,5,7,2,4,6,8
-    transformed_layer_names = []
-
-    w0Index__ = spzeros(size(w0Index_))
-    w0Weights_ = spzeros(size(w0Weights))
-
-    transform_matrix_ind = zip(collect(1:8),[1,3,5,7,2,4,6,8])
-    for (i,j) in transform_matrix_ind
-        w0Index__[i,:] =  w0Index_[j,:]
-        w0Weights_[j,:] = w0Weights[j,:]
-        append!(transformed_layer_names,layer_names[j])
-
-    end
-    UnicodePlots.spy(w0Weights_)
-
-    return (edge_dict,w0Weights_,w0Index__,Ne,Ni)
+    #(w0Weights,w0Index) = repartition_exc_inh(w0Index,w0Weights,layer_names)
+    return (edge_dict,w0Weights,w0Index,Ne,Ni)
 end
-
-function genStaticWeights(args)
-    
-    Ncells, _, pree, prie, prei, prii, jee, jie, jei, jii = map(x->args[x],
-            [:Ncells, :Ne, :pree, :prie, :prei, :prii, :jee, :jie, :jei, :jii])
-
-
-    (edge_dict,w0Weights,w0Index_,Ne,Ni) = potjans_weights(Ncells, jee, jie, jei, jii)
-
+function common_decoration(edge_dict,Ncells)
     nc0Max = 0
-
+    # what is the maximum out degree of this ragged array?
     for (k,v) in pairs(edge_dict)
         templength = length(v)
         if templength>nc0Max
@@ -134,20 +147,31 @@ function genStaticWeights(args)
         end
     end
 
-    #nc0Max = Ncells-1 # outdegree
+    # outdegree
     nc0 = Int.(nc0Max*ones(Ncells))
     w0Index = spzeros(Int,nc0Max,Ncells)
     for pre_cell = 1:Ncells
         post_cells = edge_dict[pre_cell]
         w0Index[1:length(edge_dict[pre_cell]),pre_cell] = post_cells
     end
+    nc0,w0Index
+    
+end
 
+function genStaticWeights(args)
+    
+    Ncells, _, pree, prie, prei, prii, jee, jie, jei, jii = map(x->args[x],
+            [:Ncells, :Ne, :pree, :prie, :prei, :prii, :jee, :jie, :jei, :jii])
+
+    (edge_dict,w0Weights,w0Index_,Ne,Ni) = potjans_weights(Ncells, jee, jie, jei, jii)
+
+    w0Index,nc0 = common_decoration(edge_dict,Ncells)
 
     return w0Index, w0Weights, nc0
 end
 
 function genPlasticWeights(args, w0Index, nc0, ns0)
-    Ncells, frac, Ne, L, Lexc, Linh, Lffwd, wpee, wpie, wpei, wpii, wpffwd = map(x->args[x],
+    Ncells, _, _, _, _, _, Lffwd, wpee, wpie, wpei, wpii, wpffwd = map(x->args[x],
     [:Ncells, :frac, :Ne, :L, :Lexc, :Linh, :Lffwd, :wpee, :wpie, :wpei, :wpii, :wpffwd])
     
     (edge_dict,w0Weights,w0Index_,Ne,Ni) =  potjans_weights(Ncells, wpee, wpie, wpei, wpii)
@@ -157,23 +181,8 @@ function genPlasticWeights(args, w0Index, nc0, ns0)
     # its a limit on the outdegree.
     # if this is not known upfront it can be calculated on the a pre-exisiting adjacency matrix as I do below.
     ##
+    w0Index,nc0 = common_decoration(edge_dict,Ncells)
 
-    nc0Max = 0
-
-    for (k,v) in pairs(edge_dict)
-        templength = length(v)
-        if templength>nc0Max
-            nc0Max=templength
-        end
-    end
-
-    #nc0Max = Ncells-1 # outdegree
-    nc0 = Int.(nc0Max*ones(Ncells))
-    w0Index = spzeros(Int,nc0Max,Ncells)
-    for pre_cell = 1:Ncells
-        post_cells = edge_dict[pre_cell]
-        w0Index[1:length(edge_dict[pre_cell]),pre_cell] = post_cells
-    end
 
 
     wpIndexIn = w0Index
@@ -183,9 +192,10 @@ function genPlasticWeights(args, w0Index, nc0, ns0)
     
     return wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn
 end
+#=depreciated
+
 #wpWeightFfwd, wpWeightIn, wpIndexIn, ncpIn =
 #genPlasticWeights(p.genPlasticWeights_args, w0Index, nc0, ns0)
-#=depreciated
 function convert_dense_matrices(p)
     (edge_dict,w0Weights,w0Index_,Ne,Ni) = re_write_weights(p.Ncells)
     

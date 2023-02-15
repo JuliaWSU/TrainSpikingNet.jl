@@ -74,15 +74,13 @@ ffwdRate = genFfwdRate(p.genFfwdRate_args)
 
 itask = 1
 
-JuliaInterpreter.@bp()
-
 times = []
 for i in 1:p.Ncells
     push!(times,[])
 end
 uavg, ns0, ustd,times = loop_init(itask, nothing, nothing, p.stim_off, p.train_time, dt,
     p.Nsteps, p.Ncells, p.Ne, nothing, refrac, vre, invtauedecay,
-    invtauidecay, nothing, mu, thresh, tau, times, times, ns, nothing,
+    invtauidecay, nothing, mu, thresh, tau, nothing, times, ns, nothing,
     ns_ffwd, forwardInputsE, forwardInputsI, nothing, forwardInputsEPrev,
     forwardInputsIPrev, nothing, nothing, nothing, xedecay, xidecay, nothing,
     synInputBalanced, synInput, nothing, nothing, bias, nothing, nothing, lastSpike,
@@ -118,7 +116,7 @@ end
 
 
 # get indices of postsynaptic cells for each presynaptic cell
-wpIndexConvert = zeros(Int, p.Ncells+1,p.Ncells+1)# p.Lexc+p.Linh)
+wpIndexConvert = zeros(Int, p.Ncells,p.Ncells)# p.Lexc+p.Linh)
 wpIndexOutD = Dict()
 ncpOut = Array{Int}(undef, p.Ncells)
 for i = 1:p.Ncells
@@ -129,21 +127,36 @@ end
 for postCell = 1:p.Ncells
     if postCell!=0
         for i = 1:ncpIn[postCell]
-            preCell = wpIndexIn[postCell,i]
+            println("break ff")
+            @show(postCell)
+            @show(i)
+            @show(size(wpIndexIn))
+            preCell = wpIndexIn[postCell,i] # This line fails
             if preCell!=0
-                @show(length(wpIndexOutD))
-                @show(preCell)
+                #@show(length(wpIndexOutD))
+                #@show(preCell)
                 push!(wpIndexOutD[preCell], postCell)
-                @show(size(wpIndexConvert))
-                @show(length(wpIndexOutD[preCell]))
+                #@show(size(wpIndexConvert))
+                #@show(length(wpIndexOutD[preCell]))
                 @show(postCell,i)
+                println("break a")
+                
                 wpIndexConvert[postCell,i] = length(wpIndexOutD[preCell])
+                println("break b")
             end
         end
     end
 end
 for preCell = 1:p.Ncells
     if preCell!=0
+        println("break c")
+
+        @show(ncpOut[preCell])
+        println("break d")
+
+        @show(wpIndexOutD)
+        println("break e")
+
         ncpOut[preCell] = length(wpIndexOutD[preCell])
     end
 end
@@ -155,10 +168,12 @@ end
 #PSTH(nodes,times)
 #PSTHMap(nodes,times)
 
-
+println("gets to here")
 # get weight, index of outgoing connections
 wpIndexOut = zeros(Int, maximum(ncpOut),p.Ncells)
 for preCell = 1:p.Ncells-1
+    @show(wpIndexOutD[preCell])
+    @show(wpIndexOut[1:ncpOut[preCell],preCell])
     wpIndexOut[1:ncpOut[preCell],preCell] = wpIndexOutD[preCell]
 end
 
